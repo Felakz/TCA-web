@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Entrada — Inventario | Distribuidora TCA</title>
+    <link rel="stylesheet" href="../css/styles.css">
+
+    <!-- Supabase JS CDN (ES modules compatible) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <style>
+        /* ── Variables reutilizadas del sitio ── */
+        :root {
+            --rojo-tca:    #C32228;
+            --amarillo-btn:#fbb03b;
+            --blanco:      #ffffff;
+            --texto-gris:  #333333;
+            --fondo-gris:  #f8f9fa;
+            --verde-ok:    #198754;
+            --rojo-err:    #dc3545;
+            --azul-info:   #0d6efd;
+        }
+
+        /* ── Layout de la página ── */
+        .inv-page {
+            max-width: 760px;
+            margin: 36px auto;
+            padding: 0 16px 80px;
+        }
+
+        .inv-breadcrumb {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        .inv-breadcrumb a { color: var(--rojo-tca); text-decoration: none; }
+
+        /* ── Cabecera ── */
+        .inv-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+        .inv-header-icon {
+            background: var(--rojo-tca);
+            color: var(--blanco);
+            border-radius: 10px;
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .inv-header h1 { font-size: 22px; color: var(--texto-gris); margin: 0; }
+        .inv-header p  { font-size: 13px; color: #777; margin: 2px 0 0; }
+
+        /* ── Stock badge ── */
+        .stock-card {
+            background: var(--fondo-gris);
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .stock-card__label { font-size: 13px; color: #777; }
+        .stock-card__nombre { font-size: 15px; font-weight: bold; color: var(--texto-gris); }
+        .stock-card__badge {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--rojo-tca);
+            white-space: nowrap;
+        }
+        .stock-card__badge span { font-size: 13px; font-weight: normal; color: #888; }
+
+        /* ── Formulario ── */
+        .inv-form {
+            background: var(--blanco);
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 28px;
+        }
+
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--texto-gris);
+            margin-bottom: 6px;
+        }
+        .form-group label .req { color: var(--rojo-tca); }
+
+        .form-control {
+            width: 100%;
+            border: 1.5px solid #ccc;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 14px;
+            color: var(--texto-gris);
+            transition: border-color .2s;
+        }
+        .form-control:focus { outline: none; border-color: var(--rojo-tca); }
+        .form-control.is-invalid { border-color: var(--rojo-err); }
+
+        .form-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        /* Fila de botones */
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 11px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: opacity .15s, transform .1s;
+        }
+        .btn:active { transform: scale(.97); }
+        .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+        .btn-primary {
+            background: var(--rojo-tca);
+            color: var(--blanco);
+        }
+        .btn-secondary {
+            background: var(--fondo-gris);
+            color: var(--texto-gris);
+            border: 1.5px solid #ccc;
+        }
+
+        /* ── Alerta de resultado ── */
+        .alert {
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-top: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        .alert.show { display: block; }
+        .alert-success { background: #d1e7dd; color: #0a3622; border: 1px solid #a3cfbb; }
+        .alert-danger  { background: #f8d7da; color: #58151c; border: 1px solid #f1aeb5; }
+        .alert-info    { background: #cff4fc; color: #055160; border: 1px solid #9eeaf9; }
+
+        .alert strong { display: block; margin-bottom: 4px; }
+
+        /* ── Tabla de historial ── */
+        .hist-section { margin-top: 36px; }
+        .hist-section h2 {
+            font-size: 16px;
+            color: var(--texto-gris);
+            margin-bottom: 14px;
+            border-bottom: 2px solid var(--rojo-tca);
+            padding-bottom: 6px;
+        }
+
+        .hist-table-wrapper { overflow-x: auto; }
+        .hist-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .hist-table th {
+            background: var(--rojo-tca);
+            color: var(--blanco);
+            padding: 9px 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        .hist-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            color: var(--texto-gris);
+        }
+        .hist-table tr:last-child td { border-bottom: none; }
+        .hist-table tr:hover td { background: var(--fondo-gris); }
+
+        .badge-entrada {
+            background: #d1e7dd;
+            color: #0a3622;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2.5px solid rgba(255,255,255,.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .hidden { display: none !important; }
+
+        /* ── Responsive ── */
+        @media (max-width: 540px) {
+            .form-actions { flex-direction: column; }
+            .btn { width: 100%; }
+            .stock-card { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     HEADER (igual que el resto del sitio)
+══════════════════════════════════════════════════ -->
+<header class="header">
+    <div class="header-container">
+        <div class="logo-container">
+            <a href="../index.html">
+                <img src="../imagenes/TCA_LOGO.png" alt="Distribuidora TCA">
+            </a>
+        </div>
+        <nav class="nav-menu">
+            <ul>
+                <li><a href="../index.html">Inicio</a></li>
+                <li><a href="../nosotros.html">Nosotros</a></li>
+                <li><a href="inventario-entrada.html" style="color:var(--amarillo-btn)">Inventario</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════
+     CONTENIDO PRINCIPAL
+══════════════════════════════════════════════════ -->
+<main class="inv-page">
+
+    <!-- Migas de pan -->
+    <div class="inv-breadcrumb">
+        <a href="../index.html">Inicio</a> › <strong>Inventario</strong> › Registrar Entrada
+    </div>
+
+    <!-- Cabecera de la página -->
+    <div class="inv-header">
+        <div class="inv-header-icon">📦</div>
+        <div>
+            <h1>Registrar Entrada de Inventario</h1>
+            <p>HU04 · Almacén — Stock persistente en Supabase PostgreSQL</p>
+        </div>
+    </div>
+
+    <!-- Selector de producto + stock actual -->
+    <div class="stock-card" id="stockCard">
+        <div>
+            <div class="stock-card__label">Producto seleccionado</div>
+            <div class="stock-card__nombre" id="stockNombre">Selecciona un producto</div>
+        </div>
+        <div class="stock-card__badge" id="stockBadge">
+            — <span>uds.</span>
+        </div>
+    </div>
+
+    <!-- ── Formulario ── -->
+    <form class="inv-form" id="formEntrada" novalidate autocomplete="off">
+
+        <!-- Producto -->
+        <div class="form-group">
+            <label for="productoId">Producto <span class="req">*</span></label>
+            <select class="form-control" id="productoId" name="productoId" required>
+                <option value="">— Selecciona un producto —</option>
+                <!-- Opciones cargadas dinámicamente -->
+            </select>
+        </div>
+
+        <!-- Cantidad -->
+        <div class="form-group">
+            <label for="cantidad">Cantidad a ingresar <span class="req">*</span></label>
+            <input
+                type="number"
+                class="form-control"
+                id="cantidad"
+                name="cantidad"
+                min="1"
+                step="1"
+                placeholder="Ej. 40"
+                required
+            >
+            <div class="form-hint">Debe ser un número entero positivo.</div>
+        </div>
+
+        <!-- Actor -->
+        <div class="form-group">
+            <label for="actor">Registrado por <span class="req">*</span></label>
+            <input
+                type="text"
+                class="form-control"
+                id="actor"
+                name="actor"
+                placeholder="Ej. almacen@tca.pe"
+                required
+            >
+        </div>
+
+        <!-- Observación -->
+        <div class="form-group">
+            <label for="observacion">Observación</label>
+            <input
+                type="text"
+                class="form-control"
+                id="observacion"
+                name="observacion"
+                placeholder="Opcional"
+            >
+        </div>
+
+        <!-- Idempotency key (oculto, generado automáticamente) -->
+        <input type="hidden" id="idempotencyKey" name="idempotencyKey">
+
+        <!-- Botones -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnGuardar">
+                <span class="spinner hidden" id="spinner"></span>
+                Registrar Entrada
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnLimpiar">
+                Limpiar formulario
+            </button>
+        </div>
+
+        <!-- Alerta de resultado -->
+        <div class="alert" id="alertaResultado" role="alert"></div>
+
+    </form>
+
+    <!-- ── Historial de movimientos ── -->
+    <section class="hist-section">
+        <h2>Últimos movimientos</h2>
+        <div class="hist-table-wrapper">
+            <table class="hist-table" id="tablaMovimientos">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Stock antes</th>
+                        <th>Stock después</th>
+                        <th>Actor</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyMovimientos">
+                    <tr>
+                        <td colspan="7" style="text-align:center;color:#aaa;padding:20px;">
+                            Selecciona un producto para ver el historial.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════ -->
+<script type="module">
+/**
+ * inventario-entrada.html — Controller
+ * HU04: Registrar entradas con inventario persistente
+ *
+ * Dependencias:
+ *   - window.supabase (Supabase CDN UMD cargado en <head>)
+ *   - inventario-service.js (ES Module)
+ *
+ * Para conectar con tu proyecto Supabase real, reemplaza
+ * SUPABASE_URL y SUPABASE_ANON_KEY con los valores del
+ * dashboard > Settings > API.
+ */
+
+// ── 0. Configuración Supabase ────────────────────────────────────
+// IMPORTANTE: Reemplaza estos valores con los de tu proyecto.
+const SUPABASE_URL      = 'https://TU_PROYECTO.supabase.co';
+const SUPABASE_ANON_KEY = 'TU_ANON_KEY';
+
+// Inicializar cliente Supabase (UMD expone window.supabase)
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── 1. Importar servicio ─────────────────────────────────────────
+import {
+    InventarioService,
+    InventarioError,
+    validarEntrada,
+    generarIdempotencyKey
+} from './js/inventario-service.js';
+
+const servicio = new InventarioService(sbClient);
+
+// ── 2. Referencias DOM ───────────────────────────────────────────
+const selectProducto  = document.getElementById('productoId');
+const inputCantidad   = document.getElementById('cantidad');
+const inputActor      = document.getElementById('actor');
+const inputObsrv      = document.getElementById('observacion');
+const inputIK         = document.getElementById('idempotencyKey');
+const btnGuardar      = document.getElementById('btnGuardar');
+const btnLimpiar      = document.getElementById('btnLimpiar');
+const spinner         = document.getElementById('spinner');
+const alertaResultado = document.getElementById('alertaResultado');
+const stockNombre     = document.getElementById('stockNombre');
+const stockBadge      = document.getElementById('stockBadge');
+const tbodyMovimientos= document.getElementById('tbodyMovimientos');
+
+// ── 3. Cargar lista de productos ─────────────────────────────────
+async function cargarProductos() {
+    try {
+        const { data, error } = await sbClient
+            .from('inventario')
+            .select('producto_id, nombre, stock_actual')
+            .order('nombre');
+
+        if (error) throw error;
+
+        selectProducto.innerHTML = '<option value="">— Selecciona un producto —</option>';
+        (data || []).forEach(prod => {
+            const opt = document.createElement('option');
+            opt.value       = prod.producto_id;
+            opt.textContent = `${prod.nombre} (${prod.producto_id})`;
+            opt.dataset.stock  = prod.stock_actual;
+            opt.dataset.nombre = prod.nombre;
+            selectProducto.appendChild(opt);
+        });
+    } catch {
+        mostrarAlerta('danger', 'No se pudo cargar la lista de productos. Verifica la conexión con Supabase.');
+    }
+}
+
+// ── 4. Actualizar badge de stock al cambiar producto ─────────────
+selectProducto.addEventListener('change', async () => {
+    const opt = selectProducto.selectedOptions[0];
+    if (!opt || !opt.value) {
+        stockNombre.textContent = 'Selecciona un producto';
+        stockBadge.innerHTML    = '— <span>uds.</span>';
+        tbodyMovimientos.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Selecciona un producto para ver el historial.</td></tr>';
+        return;
+    }
+
+    stockNombre.textContent = opt.dataset.nombre;
+    stockBadge.innerHTML    = `${opt.dataset.stock} <span>uds.</span>`;
+
+    // Generar nueva idempotency key para esta sesión de formulario
+    generarNuevaIK();
+
+    // Cargar historial
+    await cargarHistorial(opt.value);
+});
+
+// ── 5. Cargar historial de movimientos ───────────────────────────
+async function cargarHistorial(productoId) {
+    tbodyMovimientos.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">Cargando…</td></tr>';
+    try {
+        const movimientos = await servicio.obtenerMovimientos(productoId, 20);
+        renderHistorial(movimientos);
+    } catch {
+        tbodyMovimientos.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa">No se pudo cargar el historial.</td></tr>';
+    }
+}
+
+function renderHistorial(movimientos) {
+    if (!movimientos.length) {
+        tbodyMovimientos.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">Sin movimientos registrados.</td></tr>';
+        return;
+    }
+    tbodyMovimientos.innerHTML = movimientos.map((m, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td><span class="badge-entrada">${m.tipo_movimiento}</span></td>
+            <td><strong>+${m.cantidad}</strong></td>
+            <td>${m.stock_antes}</td>
+            <td><strong>${m.stock_despues}</strong></td>
+            <td>${escapeHtml(m.actor)}</td>
+            <td>${formatFecha(m.fecha)}</td>
+        </tr>
+    `).join('');
+}
+
+// ── 6. Idempotency key ───────────────────────────────────────────
+function generarNuevaIK() {
+    inputIK.value = generarIdempotencyKey();
+}
+
+// Generar al cargar la página
+generarNuevaIK();
+
+// ── 7. Submit del formulario ─────────────────────────────────────
+document.getElementById('formEntrada').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    ocultarAlerta();
+
+    const productoId     = selectProducto.value.trim();
+    const cantidadRaw    = inputCantidad.value;
+    const cantidad       = cantidadRaw === '' ? null : parseInt(cantidadRaw, 10);
+    const actor          = inputActor.value.trim();
+    const observacion    = inputObsrv.value.trim() || null;
+    const idempotencyKey = inputIK.value.trim();
+
+    // Validación en cliente
+    try {
+        validarEntrada({ productoId, cantidad, actor, idempotencyKey });
+    } catch (err) {
+        marcarError(err.code);
+        mostrarAlerta('danger', `<strong>Error de validación</strong>${err.message}`);
+        return;
+    }
+
+    limpiarErrores();
+    setLoading(true);
+
+    try {
+        const resultado = await servicio.registrarEntrada({
+            productoId,
+            cantidad,
+            actor,
+            idempotencyKey,
+            observacion
+        });
+
+        if (resultado.status === 'IDEMPOTENT') {
+            mostrarAlerta('info',
+                `<strong>Doble envío detectado</strong>` +
+                `Esta entrada ya fue registrada (movimiento #${resultado.movimientoId}). ` +
+                `Stock actual: <strong>${resultado.stockDespues}</strong> uds.`
+            );
+        } else {
+            mostrarAlerta('success',
+                `<strong>✅ Entrada registrada</strong>` +
+                `Movimiento #${resultado.movimientoId} creado. ` +
+                `Nuevo stock: <strong>${resultado.stockDespues}</strong> uds.`
+            );
+
+            // Actualizar badge de stock
+            stockBadge.innerHTML = `${resultado.stockDespues} <span>uds.</span>`;
+
+            // Actualizar dataset del option para futuras consultas
+            const opt = selectProducto.selectedOptions[0];
+            if (opt) opt.dataset.stock = resultado.stockDespues;
+
+            // Generar nueva IK para el próximo envío
+            generarNuevaIK();
+
+            // Resetear cantidad y observación
+            inputCantidad.value = '';
+            inputObsrv.value    = '';
+
+            // Recargar historial
+            await cargarHistorial(productoId);
+        }
+
+    } catch (err) {
+        const msg = err instanceof InventarioError
+            ? err.message
+            : 'Ocurrió un error inesperado. Inténtalo de nuevo.';
+        mostrarAlerta('danger', `<strong>Error</strong>${msg}`);
+    } finally {
+        setLoading(false);
+    }
+});
+
+// ── 8. Limpiar formulario ────────────────────────────────────────
+btnLimpiar.addEventListener('click', () => {
+    selectProducto.value  = '';
+    inputCantidad.value   = '';
+    inputActor.value      = '';
+    inputObsrv.value      = '';
+    generarNuevaIK();
+    limpiarErrores();
+    ocultarAlerta();
+    stockNombre.textContent = 'Selecciona un producto';
+    stockBadge.innerHTML    = '— <span>uds.</span>';
+    tbodyMovimientos.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Selecciona un producto para ver el historial.</td></tr>';
+});
+
+// ── 9. Helpers de UI ─────────────────────────────────────────────
+function setLoading(cargando) {
+    btnGuardar.disabled = cargando;
+    spinner.classList.toggle('hidden', !cargando);
+}
+
+function mostrarAlerta(tipo, html) {
+    alertaResultado.className = `alert alert-${tipo} show`;
+    alertaResultado.innerHTML = html;
+    alertaResultado.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function ocultarAlerta() {
+    alertaResultado.className = 'alert';
+    alertaResultado.innerHTML = '';
+}
+
+function marcarError(codigo) {
+    if (codigo === 'CANTIDAD_INVALIDA') inputCantidad.classList.add('is-invalid');
+    if (codigo === 'ACTOR_REQUERIDO')   inputActor.classList.add('is-invalid');
+    if (codigo === 'PRODUCTO_REQUERIDO') selectProducto.classList.add('is-invalid');
+}
+
+function limpiarErrores() {
+    [selectProducto, inputCantidad, inputActor].forEach(el => el.classList.remove('is-invalid'));
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatFecha(isoStr) {
+    if (!isoStr) return '—';
+    const d = new Date(isoStr);
+    return d.toLocaleString('es-PE', {
+        day:'2-digit', month:'2-digit', year:'numeric',
+        hour:'2-digit', minute:'2-digit'
+    });
+}
+
+// ── 10. Inicialización ───────────────────────────────────────────
+await cargarProductos();
+</script>
+
+</body>
+</html>
+

@@ -10,6 +10,7 @@ export function Panel({ client }: { client: InternalClient }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [movementRevision, setMovementRevision] = useState(0);
   const [revision, setRevision] = useState(0);
   const [note, setNote] = useState('');
   const locked = useRef(false);
@@ -42,9 +43,9 @@ export function Panel({ client }: { client: InternalClient }) {
     } catch { if (mounted.current) setMessage('Error de conexión. Reintenta con los mismos datos.'); }
     finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
-  return <><Orders revision={revision} client={client} onChange={() => { void client.products().then(({ data, error }) => { if (!error && mounted.current) setProducts(data); }); }} /> <section><h2>Inventario</h2><p role="status">{message}</p>
+  return <><Orders revision={revision} client={client} onChange={() => { setMovementRevision(value => value + 1); void client.products().then(({ data, error }) => { if (!error && mounted.current) setProducts(data); }); }} /> <section><h2>Inventario</h2><p role="status">{message}</p>
     {ready && <form onSubmit={submit}><fieldset disabled={busy}><label>Producto<select required value={product} onChange={e => setProduct(e.target.value)}><option value="">Selecciona un producto</option>{products.map(row => <option key={row.producto_id} value={row.producto_id}>{row.nombre} — físico: {row.stock_actual}, reservado: {row.reservado}, disponible: {row.disponible}</option>)}</select></label>
     <label>Cantidad<input type="number" required min="1" max="2147483647" step="1" value={quantity} onChange={e => setQuantity(e.target.value)} /></label><label>Observación<input maxLength={500} value={note} onChange={e => setNote(e.target.value)} /></label><button disabled={busy}>{busy ? 'Registrando…' : 'Registrar entrada'}</button></fieldset></form>}
-    {product && <History key={`${product}:${revision}`} client={client} product={product} />}
+    {product && <History key={`${product}:${revision}:${movementRevision}`} client={client} product={product} />}
   </section></>;
 }

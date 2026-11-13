@@ -13,6 +13,17 @@ export function openDatabase(path = resolve('data/tca.sqlite')) {
     CREATE TABLE IF NOT EXISTS movimientos_inventario(id INTEGER PRIMARY KEY, producto_id TEXT NOT NULL REFERENCES inventario(producto_id), cantidad INTEGER NOT NULL CHECK(cantidad>0), stock_despues INTEGER NOT NULL, actor TEXT NOT NULL REFERENCES usuarios(id), idempotency_key TEXT NOT NULL UNIQUE, observacion TEXT, fecha TEXT NOT NULL);
     INSERT OR IGNORE INTO inventario VALUES('PROD-TEST-001','Producto de prueba HU04',20);`);
   db.exec(readFileSync(new URL('../../migrations/sqlite/002_hu05_reservas.sql', import.meta.url), 'utf8'));
+  db.exec('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)');
+  db.exec('PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE');
+  try {
+    if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=?').get('003_hu06')) {
+      db.exec(readFileSync(new URL('../../migrations/sqlite/003_hu06_despachos.sql', import.meta.url), 'utf8'));
+      db.prepare('INSERT INTO schema_migrations VALUES(?)').run('003_hu06');
+    }
+    if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Integridad referencial inválida al migrar HU06');
+    db.exec('COMMIT');
+  } catch (error) { db.exec('ROLLBACK'); db.close(); throw error; }
+  db.exec('PRAGMA foreign_keys=ON');
   return db;
 }
 export function createUser(db, email, password) {

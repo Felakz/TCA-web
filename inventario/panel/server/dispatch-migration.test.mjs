@@ -21,6 +21,7 @@ test('HU06 migra una base HU05 existente sin perder pedidos, reservas ni entrada
     old.exec("INSERT INTO pedidos VALUES('previo','CONFIRMADO','u','2026-11-12',NULL,NULL); INSERT INTO pedido_lineas VALUES('previo','P',10)");
     old.close();
     const migrated = openDatabase(path);
+    assert.equal(migrated.prepare("SELECT rol FROM usuarios WHERE id='u'").get().rol, 'SIN_ASIGNAR');
     assert.equal(migrated.prepare("SELECT estado FROM pedidos WHERE id='previo'").get().estado, 'CONFIRMADO');
     assert.equal(migrated.prepare("SELECT disponible FROM inventario_disponible WHERE producto_id='P'").get().disponible, 20);
     assert.equal(migrated.prepare('SELECT tipo_movimiento FROM movimientos_inventario WHERE id=1').get().tipo_movimiento, 'ENTRADA');

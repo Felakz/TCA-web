@@ -18,7 +18,7 @@ function setup(initial: Session | null = null) {
   const result = render(<App client={client} />);
   return { ...result, auth, unsubscribe, emit: (session: Session | null) => act(() => listener(session ? 'SIGNED_IN' : 'SIGNED_OUT', session)) };
 }
-const session = { user: { id: 'test-id', email: 'equipo@example.test' } } as Session;
+const session = { user: { id: 'test-id', email: 'equipo@example.test', rol: 'VENTAS' } } as Session;
 it('sin sesión oculta las operaciones internas', async () => {
   setup(); await screen.findByRole('button', { name: 'Ingresar' });
   expect(screen.queryByText('Operaciones privadas')).toBeNull();

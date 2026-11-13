@@ -135,3 +135,25 @@ Los registros de usuarios y auditoría permanecen en SQLite. Las herramientas lo
 ### Límite actual de aceptación
 
 **SQLite no implementa PostgreSQL/RLS.** En esta etapa la API local aplica los permisos. El criterio específico de políticas PostgreSQL/RLS queda pendiente de la migración a Supabase; no se declara acreditado por estas pruebas. No hay migración HU13 de Supabase aplicada. Ver `VERIFICACION_HU13.md`.
+
+## HU09 — Evaluación de consulta por WhatsApp
+
+La decisión y las fuentes oficiales están en `EVALUACION_HU09.md`; la verificación está en `VERIFICACION_HU09.md`. El MVP prepara una consulta manual, no envía confirmaciones automáticamente ni comprueba el estado del pedido.
+
+El rol Cliente encuentra el formulario de consulta junto al catálogo comercial. Introducir una referencia permite preparar y editar texto incluso sin un destino habilitado. El enlace se muestra solo después de configurar un destino previamente verificado. El número antiguo `5199999999` no está verificado y sus enlaces en las páginas HTML/copias se deshabilitaron.
+
+Después de verificar manualmente titularidad y recepción, desde `inventario/panel`:
+
+```powershell
+Copy-Item .env.whatsapp.example .env.whatsapp
+# Editar .env.whatsapp: número internacional solo con dígitos y sin +.
+# WHATSAPP_BUSINESS_NUMBER=NUMERO_OFICIAL_VERIFICADO
+# WHATSAPP_DESTINATION_VERIFIED=true solo después de registrar evidencia.
+npm run server
+```
+
+El servidor carga `.env.whatsapp` si existe (archivo ignorado por Git). Por defecto el destino está vacío y la verificación es false. La bandera representa una comprobación administrativa previa; no valida remotamente la cuenta. Cambiarla exige reiniciar la API. No configurar números de ejemplo para uso real.
+
+`GET /api/whatsapp` es público y solo expone el destino habilitado y avisos. La referencia del pedido y el texto no se envían a este endpoint; se usan localmente para crear el enlace. No hay tokens, llamadas de envío a Meta, webhooks ni seguimiento de entrega. Las páginas HTML heredadas permanecen sin enlace activo; la configuración se utiliza en el formulario React.
+
+La API real de WhatsApp está fuera del compromiso del MVP. La vinculación segura cliente-pedido depende de HU07 y no se declara resuelta por un enlace preparado.

@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run src",
-    "server": "node server/index.mjs",
+    "server": "node --env-file-if-exists=.env.whatsapp server/index.mjs",
     "user:create": "node server/create-user.mjs",
     "test:server": "node --test server/*.test.mjs",
     "user:role": "node server/set-role.mjs"

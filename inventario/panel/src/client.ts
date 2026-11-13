@@ -1,3 +1,4 @@
+export type WhatsAppContact = { modo: 'ENLACE_PREPARADO'; envio_automatico: false; destino: string | null; destino_verificado: boolean; aviso: string };
 export type Role = 'GERENCIA' | 'VENTAS' | 'ALMACEN' | 'CLIENTE' | 'SIN_ASIGNAR';
 export type ManagedUser = { id: string; email: string; rol: Role; habilitado: number };
 export type ReplenishmentProduct = Product & { minimo: number | null; objetivo: number | null; habilitado: number; alerta: number; sugerido: number };
@@ -31,6 +32,7 @@ export const client = {
   users: () => call<ManagedUser[]>('usuarios'),
   createUser: (params: { email: string; password: string; rol: Role }) => call('usuarios/crear', params),
   updateUser: (params: { id: string; rol: Role; habilitado: boolean }) => call('usuarios/actualizar', params),
+  whatsappContact: () => call<WhatsAppContact>('whatsapp'),
   catalog: () => call<{ id: number; nombre: string; marca: string; descripcion: string; imagen: string; categoria: string }[]>('catalogo'),
   replenishment: () => call<ReplenishmentData>('reposicion'),
   configureMinimum: (params: { producto_id: string; minimo: number; objetivo: number; habilitado: boolean }) => call('reposicion/configurar', params),

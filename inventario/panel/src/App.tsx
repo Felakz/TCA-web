@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Session, InternalClient } from './client';
+import { PublicCatalog } from './PublicCatalog';
 import { Panel } from './Panel';
 export function App({ client }: { client: InternalClient | null }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -43,8 +44,8 @@ export function App({ client }: { client: InternalClient | null }) {
   }
   return <main><h1>Panel interno TCA</h1>{error && <p role="alert">{error}</p>}
     {loading ? <p role="status">Comprobando sesión…</p> : session ? <>
-      <header><p>Sesión: {session.user.email}</p><button disabled={busy} onClick={logout}>Cerrar sesión</button></header>
-      {!busy && <Panel key={session.user.id} client={client} />}
+      <header><p>Sesión: {session.user.email}</p><p>Rol: {session.user.rol}</p><button disabled={busy} onClick={logout}>Cerrar sesión</button></header>
+      {!busy && (['GERENCIA','VENTAS','ALMACEN'].includes(session.user.rol) ? <Panel key={`${session.user.id}:${session.user.rol}`} client={client} role={session.user.rol} /> : session.user.rol === 'CLIENTE' ? <PublicCatalog client={client} /> : <p role="status">Tu cuenta no tiene un rol asignado. Contacta a Gerencia.</p>)}
     </> : <form onSubmit={login}><h2>Iniciar sesión</h2>
       <label>Correo<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>
       <label>Contraseña<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>

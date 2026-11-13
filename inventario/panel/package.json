@@ -9,7 +9,8 @@
     "test": "vitest run src",
     "server": "node server/index.mjs",
     "user:create": "node server/create-user.mjs",
-    "test:server": "node --test server/*.test.mjs"
+    "test:server": "node --test server/*.test.mjs",
+    "user:role": "node server/set-role.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",

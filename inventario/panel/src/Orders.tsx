@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { InternalClient, Order, Product, Receipt } from './client';
-export function Orders({ client, onChange, revision }: { client: InternalClient; revision: number; onChange: () => void }) {
+import type { InternalClient, Order, Product, Receipt, Role } from './client';
+export function Orders({ client, onChange, revision, role }: { role: Role; client: InternalClient; revision: number; onChange: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [id, setId] = useState(() => crypto.randomUUID());
@@ -65,10 +65,10 @@ export function Orders({ client, onChange, revision }: { client: InternalClient;
   }
   return <section><h2>Pedidos y reservas</h2><p role="status">{message}</p>
     <button disabled={busy} onClick={() => { void refresh(); onChange(); }}>Actualizar disponibilidad</button>
-    <form onSubmit={confirm}><fieldset disabled={busy}><p>Pedido: {id}</p><label>Producto a reservar<select required value={product} onChange={e => setProduct(e.target.value)}><option value="">Selecciona un producto</option>{products.map(p => <option key={p.producto_id} value={p.producto_id}>{p.nombre} — físico {p.stock_actual}, reservado {p.reservado}, disponible {p.disponible}</option>)}</select></label>
-    <label>Unidades a reservar<input required type="number" min="1" max="2147483647" step="1" value={quantity} onChange={e => setQuantity(e.target.value)} /></label><button>Confirmar pedido y reservar</button></fieldset></form>
+    {role === 'VENTAS' && <form onSubmit={confirm}><fieldset disabled={busy}><p>Pedido: {id}</p><label>Producto a reservar<select required value={product} onChange={e => setProduct(e.target.value)}><option value="">Selecciona un producto</option>{products.map(p => <option key={p.producto_id} value={p.producto_id}>{p.nombre} — físico {p.stock_actual}, reservado {p.reservado}, disponible {p.disponible}</option>)}</select></label>
+    <label>Unidades a reservar<input required type="number" min="1" max="2147483647" step="1" value={quantity} onChange={e => setQuantity(e.target.value)} /></label><button>Confirmar pedido y reservar</button></fieldset></form>}
     <h3>Pedidos registrados</h3>{orders.length === 0 && <p>No hay pedidos registrados.</p>}
-    <ul>{orders.map(order => <li key={order.id}><p>{order.id} — {order.estado}: {order.lineas.map(l => `${l.producto_id} × ${l.cantidad}`).join(', ')}</p>{order.estado === 'CONFIRMADO' && <><button disabled={busy} onClick={() => { void dispatch(order.id); }}>Despachar pedido {order.id}</button><button disabled={busy} onClick={() => { void cancel(order.id); }}>Cancelar pedido {order.id}</button></>}{order.estado === 'DESPACHADO' && <button disabled={busy} onClick={() => { void showReceipt(order.id); }}>Ver constancia {order.id}</button>}</li>)}</ul>
+    <ul>{orders.map(order => <li key={order.id}><p>{order.id} — {order.estado}: {order.lineas.map(l => `${l.producto_id} × ${l.cantidad}`).join(', ')}</p>{order.estado === 'CONFIRMADO' && <>{role === 'ALMACEN' && <button disabled={busy} onClick={() => { void dispatch(order.id); }}>Despachar pedido {order.id}</button>}{role === 'VENTAS' && <button disabled={busy} onClick={() => { void cancel(order.id); }}>Cancelar pedido {order.id}</button>}</>}{order.estado === 'DESPACHADO' && <button disabled={busy} onClick={() => { void showReceipt(order.id); }}>Ver constancia {order.id}</button>}</li>)}</ul>
     {receipt && <article aria-label="Constancia de despacho"><h3>{receipt.leyenda}</h3><p>Constancia: {receipt.id}</p><p>Pedido: {receipt.pedido_id}</p><p>Fecha: {new Date(receipt.fecha).toLocaleString('es-PE')}</p><p>Responsable: {receipt.actor.email}</p><ul>{receipt.lineas.map(l => <li key={l.producto_id}>{l.nombre} ({l.producto_id}): {l.cantidad} unidades</li>)}</ul><button onClick={downloadReceipt}>Descargar constancia interna</button></article>}
   </section>;
 }

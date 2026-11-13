@@ -1,3 +1,4 @@
+import { fixtureRole } from './test-access.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -14,6 +15,7 @@ test('HU08: mínimo inclusivo, reservas, propuestas revisables y persistencia', 
   const server = createApp(db); server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}/api/`;
   async function request(route, body, cookie) {
+    if (cookie) db.prepare('UPDATE usuarios SET rol=?').run(fixtureRole(route));
     return fetch(base + route, { headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
   }
   try {

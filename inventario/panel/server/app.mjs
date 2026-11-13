@@ -1,3 +1,5 @@
+import { allowed, users, manageUser, addUser } from './permissions.mjs';
+import { readFileSync } from 'node:fs';
 import { replenishment, configureMinimum, createProposal, reviseProposal } from './replenishment.mjs';
 import { dispatchOrder, getReceipt, confirmOrder, cancelOrder, listOrders, OrderError } from './orders.mjs';
 import { createServer } from 'node:http';
@@ -23,7 +25,7 @@ export function createApp(db) {
         if (!body || Array.isArray(body) || typeof body !== 'object') return send(400, { message: 'Solicitud inválida' });
       }
       const token = (req.headers.cookie || '').split(';').map(v => v.trim()).find(v => v.startsWith('tca_session='))?.slice(12) || '';
-      const user = db.prepare('SELECT u.id,u.email FROM sesiones s JOIN usuarios u ON u.id=s.usuario_id WHERE s.token=? AND s.vence>? AND u.habilitado=1').get(hash(token), Date.now());
+      const user = db.prepare('SELECT u.id,u.email,u.rol FROM sesiones s JOIN usuarios u ON u.id=s.usuario_id WHERE s.token=? AND s.vence>? AND u.habilitado=1').get(hash(token), Date.now());
       if (url.pathname === '/api/session' && req.method === 'GET') return send(200, { session: user ? { user } : null });
       if (url.pathname === '/api/login' && req.method === 'POST') {
         const ip = req.socket.remoteAddress;
@@ -41,13 +43,21 @@ export function createApp(db) {
         db.prepare('DELETE FROM sesiones WHERE vence<=? OR token=?').run(now, hash(token));
         db.prepare('INSERT INTO sesiones VALUES(?,?,?)').run(hash(next), account.id, now + 28800000);
         attempts.delete(ip);
-        return send(200, { session: { user: { id: account.id, email: account.email } } }, cookie(next));
+        return send(200, { session: { user: { id: account.id, email: account.email, rol: account.rol } } }, cookie(next));
+      }
+      if (url.pathname === '/api/catalogo' && req.method === 'GET') {
+        const source = JSON.parse(readFileSync(new URL('../../../js/productos.json', import.meta.url), 'utf8'));
+        return send(200, Object.entries(source).flatMap(([categoria, entry]) => (entry.productos ?? []).map(p => ({ id:p.id,nombre:p.nombre,marca:p.marca,imagen:p.imagen,descripcion:p.descripcion,categoria }))));
       }
       if (!user) return send(401, { message: 'Se requiere una sesión habilitada.' });
       if (url.pathname === '/api/logout' && req.method === 'POST') {
         db.prepare('DELETE FROM sesiones WHERE token=?').run(hash(token));
         return send(200, {}, cookie(''));
       }
+      if (!allowed(user.rol, req.method, url.pathname)) return send(403, { message: 'Tu rol no tiene permiso para esta operación.' });
+      if (url.pathname === '/api/usuarios' && req.method === 'GET') return send(200, users(db));
+      if (url.pathname === '/api/usuarios/crear' && req.method === 'POST') return send(200, addUser(db, user, body));
+      if (url.pathname === '/api/usuarios/actualizar' && req.method === 'POST') return send(200, manageUser(db, user, body));
       if (url.pathname === '/api/reposicion' && req.method === 'GET') return send(200, replenishment(db));
       if (url.pathname === '/api/reposicion/configurar' && req.method === 'POST') return send(200, configureMinimum(db, user, body));
       if (url.pathname === '/api/reposicion/propuestas' && req.method === 'POST') return send(200, createProposal(db, user, body));

@@ -1,3 +1,4 @@
+import { fixtureRole } from './test-access.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Worker } from 'node:worker_threads';
@@ -22,6 +23,7 @@ test('HU05: reservas atómicas entre dos sesiones y conexiones SQLite independie
     const [port] = await once(worker, 'message');
     let cookie;
     async function call(route, body, authenticated = true) {
+      if (authenticated && cookie) { const access = openDatabase(path); access.prepare('UPDATE usuarios SET rol=? WHERE email=?').run(fixtureRole(route),email); access.close(); }
       return fetch(`http://127.0.0.1:${port}/api/${route}`, {
         headers: { 'Content-Type': 'application/json', ...(authenticated && cookie ? { Cookie: cookie } : {}) },
         ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) })

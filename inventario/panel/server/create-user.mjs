@@ -12,6 +12,6 @@ const password = await answer;
 rl.close();
 console.log();
 const db = openDatabase();
-try { createUser(db, email, password); console.log('Cuenta interna habilitada.'); }
+try { createUser(db, email, password, process.argv[3] || 'SIN_ASIGNAR'); console.log('Cuenta interna habilitada.'); }
 catch (error) { console.error(error.message); process.exitCode = 1; }
 finally { db.close(); }

@@ -2,9 +2,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Orders } from './Orders';
-import type { InternalClient, Order } from './client';
+import type { InternalClient, Order, Role } from './client';
 afterEach(cleanup);
-function setup(orders: Order[] = []) {
+function setup(orders: Order[] = [], role: Role = 'VENTAS') {
   const client = {
     products: vi.fn().mockResolvedValue({ data: [{ producto_id: 'P1', nombre: 'Producto', stock_actual: 30, reservado: 10, disponible: 20 }], error: null }),
     orders: vi.fn().mockResolvedValue({ data: orders, error: null }),
@@ -14,7 +14,7 @@ function setup(orders: Order[] = []) {
     cancelOrder: vi.fn().mockResolvedValue({ data: { estado: 'CANCELADO' }, error: null })
   };
   const onChange = vi.fn();
-  render(<Orders client={client as unknown as InternalClient} revision={0} onChange={onChange} />);
+  render(<Orders role={role} client={client as unknown as InternalClient} revision={0} onChange={onChange} />);
   return { client, onChange };
 }
 it('muestra físico, reservado y disponible e informa el rechazo del servidor', async () => {
@@ -53,7 +53,7 @@ it('cancelar actualiza la lista y elimina la acción de cancelación', async () 
 
 it('despachar actualiza el estado y muestra una constancia recuperable', async () => {
   const order: Order = { id: 'pedido-1', estado: 'CONFIRMADO', lineas: [{ producto_id: 'P1', cantidad: 10 }] };
-  const { client, onChange } = setup([order]);
+  const { client, onChange } = setup([order], 'ALMACEN');
   const receipt = { id: 'DES-1', pedido_id: 'pedido-1', fecha: '2026-11-13T12:00:00Z', actor: { id: 'user-1', email: 'almacen@example.test' }, leyenda: 'CONSTANCIA INTERNA DE DESPACHO — SIN VALOR TRIBUTARIO', lineas: [{ producto_id: 'P1', nombre: 'Producto', cantidad: 10, stock_antes: 30, stock_despues: 20 }] };
   client.dispatchOrder.mockResolvedValue({ data: { constancia: receipt }, error: null });
   client.receipt.mockResolvedValue({ data: receipt, error: null });
@@ -70,7 +70,7 @@ it('despachar actualiza el estado y muestra una constancia recuperable', async (
 });
 it('un rechazo al despachar mantiene las acciones de un pedido confirmado', async () => {
   const order: Order = { id: 'pedido-error', estado: 'CONFIRMADO', lineas: [{ producto_id: 'P1', cantidad: 10 }] };
-  const { client } = setup([order]);
+  const { client } = setup([order], 'ALMACEN');
   client.dispatchOrder.mockResolvedValue({ data: null, error: { message: 'Stock físico insuficiente.' } });
   fireEvent.click(await screen.findByRole('button', { name: 'Despachar pedido pedido-error' }));
   await screen.findByText('Stock físico insuficiente.');

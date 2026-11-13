@@ -31,10 +31,19 @@ export function openDatabase(path = resolve('data/tca.sqlite')) {
     }
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); db.close(); throw error; }
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=?').get('005_hu13')) {
+      db.exec(readFileSync(new URL('../../migrations/sqlite/005_hu13_roles.sql', import.meta.url), 'utf8'));
+      db.prepare('INSERT INTO schema_migrations VALUES(?)').run('005_hu13');
+    }
+    db.exec('COMMIT');
+  } catch (error) { db.exec('ROLLBACK'); db.close(); throw error; }
   return db;
 }
-export function createUser(db, email, password) {
+export function createUser(db, email, password, role = 'SIN_ASIGNAR') {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== 'string' || password.length < 12) throw new Error('Usa correo válido y contraseña de al menos 12 caracteres.');
+  if (!['SIN_ASIGNAR','GERENCIA','VENTAS','ALMACEN','CLIENTE'].includes(role)) throw new Error('Rol inválido.');
   const salt = randomBytes(16).toString('hex');
-  db.prepare('INSERT INTO usuarios(id,email,salt,hash) VALUES(?,?,?,?)').run(randomUUID(), email.toLowerCase(), salt, scryptSync(password, salt, 64).toString('hex'));
+  db.prepare('INSERT INTO usuarios(id,email,salt,hash,rol) VALUES(?,?,?,?,?)').run(randomUUID(), email.toLowerCase(), salt, scryptSync(password, salt, 64).toString('hex'), role);
 }

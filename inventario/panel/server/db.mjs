@@ -23,7 +23,14 @@ export function openDatabase(path = resolve('data/tca.sqlite')) {
     if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Integridad referencial inválida al migrar HU06');
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); db.close(); throw error; }
-  db.exec('PRAGMA foreign_keys=ON');
+  db.exec('PRAGMA foreign_keys=ON; BEGIN IMMEDIATE');
+  try {
+    if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=?').get('004_hu08')) {
+      db.exec(readFileSync(new URL('../../migrations/sqlite/004_hu08_reposicion.sql', import.meta.url), 'utf8'));
+      db.prepare('INSERT INTO schema_migrations VALUES(?)').run('004_hu08');
+    }
+    db.exec('COMMIT');
+  } catch (error) { db.exec('ROLLBACK'); db.close(); throw error; }
   return db;
 }
 export function createUser(db, email, password) {

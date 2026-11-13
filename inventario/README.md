@@ -1,4 +1,4 @@
-# Panel interno — SQLite (HU10 / HU04 / HU05 / HU06)
+# Panel interno — SQLite (HU10 / HU04 / HU05 / HU06 / HU08)
 
 La versión actual usa React + TypeScript + Vite y una API local Node.js con SQLite. No requiere cuenta de Supabase ni claves VITE_SUPABASE. El catálogo público conserva HTML y JavaScript.
 
@@ -80,3 +80,23 @@ Rutas protegidas: `POST /api/pedidos/:id/despachar` con `{}` y `GET /api/pedidos
 Reiniciar `npm run server` para aplicar `migrations/sqlite/003_hu06_despachos.sql`. La migración se ejecuta una vez, queda registrada en `schema_migrations` y conserva los pedidos y movimientos existentes. Respaldar la carpeta `data` con la API detenida antes de actualizar. El SQL 003 se ejecuta mediante `db.mjs`, que controla transacción, permisos de claves foráneas y comprobación de integridad; no pegarlo aislado en una consola.
 
 La autorización actual permite operar a cualquier cuenta interna habilitada; la separación Almacén/Ventas corresponde a HU13. Ver `VERIFICACION_HU06.md`. Supabase/PostgreSQL sigue pendiente para la migración posterior.
+
+## HU08 — Alertas de mínimo y propuestas de compra
+
+En **Alertas de stock mínimo y reposición**, configurar por producto:
+
+- **Mínimo**: entero no negativo. El umbral es inclusivo: disponible menor o igual al mínimo activa la alerta.
+- **Objetivo**: entero mayor que el mínimo. La sugerencia es objetivo menos disponibilidad; es una propuesta inicial, no una cantidad de compra obligatoria.
+- **Habilitar alerta**: los productos existentes empiezan sin configuración activa. Un mínimo cero habilitado alerta al agotarse la disponibilidad.
+
+Se usa la disponibilidad de HU05 (físico menos reservas confirmadas). Cada alerta tiene identificación `AL-MIN-producto`, texto **STOCK MÍNIMO ALCANZADO** y color. No depende solo del color. Actualiza al registrar entradas, reservar, cancelar o despachar desde el panel; también cada 30 segundos, al volver a la ventana o mediante **Actualizar alertas**. Los cambios en otra sesión pueden tardar hasta ese refresco.
+
+**Crear propuesta** guarda un borrador por producto con la cantidad sugerida y el disponible/mínimo/objetivo de origen. La creación comprueba que la alerta siga activa en el servidor. Las cantidades y observaciones pueden revisarse y guardarse; cada revisión incrementa la versión para evitar sobrescribir una modificación de otra sesión. Si hay conflicto, copiar los cambios deseados, actualizar y revisar nuevamente. La API permite reintentar una creación con el mismo identificador sin duplicarla.
+
+Las propuestas persisten aunque desaparezca la alerta. Su cantidad guardada no cambia automáticamente al variar el stock: revisar la vigencia con el disponible actual. Se mantiene un único borrador revisable por producto; esta historia no incluye órdenes de compra, archivo de propuestas ni envío al proveedor. No hay integración ni ruta de envío automático.
+
+Reiniciar `npm run server` para aplicar automáticamente `migrations/sqlite/004_hu08_reposicion.sql`. La migración versionada añade tablas sin alterar stock, pedidos ni movimientos existentes. Respaldar `data` con la API detenida antes de actualizar.
+
+Rutas protegidas: `GET /api/reposicion`, `POST /api/reposicion/configurar`, `POST /api/reposicion/propuestas` y `POST /api/reposicion/propuestas/:id/revisar`. La configuración y revisión registran usuario y fecha. Como en las historias previas, cualquier cuenta interna habilitada tiene acceso hasta implementar HU13.
+
+Resultados y trazabilidad: `VERIFICACION_HU08.md`. Se mantiene SQLite; PostgreSQL/Auth/RLS queda pendiente para la migración a Supabase.

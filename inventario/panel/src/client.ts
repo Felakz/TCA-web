@@ -1,3 +1,6 @@
+export type ReplenishmentProduct = Product & { minimo: number | null; objetivo: number | null; habilitado: number; alerta: number; sugerido: number };
+export type Proposal = { id: string; producto_id: string; cantidad: number; observacion: string; disponible_origen: number; minimo_origen: number; objetivo_origen: number; version: number; estado: 'BORRADOR' };
+export type ReplenishmentData = { productos: ReplenishmentProduct[]; propuestas: Proposal[] };
 export type Receipt = { id: string; pedido_id: string; fecha: string; actor: { id: string; email: string }; leyenda: string; lineas: { producto_id: string; nombre: string; cantidad: number; stock_antes: number; stock_despues: number }[] };
 export type Order = { id: string; estado: 'CONFIRMADO' | 'CANCELADO' | 'DESPACHADO'; lineas: { producto_id: string; cantidad: number }[] };
 export type Session = { user: { id: string; email: string } };
@@ -23,6 +26,10 @@ export const client = {
     async signInWithPassword(credentials: { email: string; password: string }) { const result = await call<{ session: Session }>('login', credentials); if (!result.error) { emit(result.data.session); channel?.postMessage('change'); } return { error: result.error }; },
     async signOut(_options?: { scope: string }) { const result = await call('logout', {}); if (!result.error) { emit(null); channel?.postMessage('change'); } return { error: result.error }; }
   },
+  replenishment: () => call<ReplenishmentData>('reposicion'),
+  configureMinimum: (params: { producto_id: string; minimo: number; objetivo: number; habilitado: boolean }) => call('reposicion/configurar', params),
+  createProposal: (params: { id: string; producto_id: string; cantidad: number; observacion: string }) => call('reposicion/propuestas', params),
+  reviseProposal: (id: string, params: { cantidad: number; observacion: string; version: number }) => call(`reposicion/propuestas/${encodeURIComponent(id)}/revisar`, params),
   orders: () => call<Order[]>('pedidos'),
   confirmOrder: (params: { id: string; lineas: { producto_id: string; cantidad: number }[] }) => call('pedidos/confirmar', params),
   dispatchOrder: (id: string) => call<{ constancia: Receipt }>(`pedidos/${encodeURIComponent(id)}/despachar`, {}),

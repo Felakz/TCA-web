@@ -1,3 +1,4 @@
+import { replenishment, configureMinimum, createProposal, reviseProposal } from './replenishment.mjs';
 import { dispatchOrder, getReceipt, confirmOrder, cancelOrder, listOrders, OrderError } from './orders.mjs';
 import { createServer } from 'node:http';
 import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
@@ -47,6 +48,11 @@ export function createApp(db) {
         db.prepare('DELETE FROM sesiones WHERE token=?').run(hash(token));
         return send(200, {}, cookie(''));
       }
+      if (url.pathname === '/api/reposicion' && req.method === 'GET') return send(200, replenishment(db));
+      if (url.pathname === '/api/reposicion/configurar' && req.method === 'POST') return send(200, configureMinimum(db, user, body));
+      if (url.pathname === '/api/reposicion/propuestas' && req.method === 'POST') return send(200, createProposal(db, user, body));
+      const revision = url.pathname.match(/^\/api\/reposicion\/propuestas\/([a-zA-Z0-9_-]{1,100})\/revisar$/);
+      if (revision && req.method === 'POST') return send(200, reviseProposal(db, user, revision[1], body));
       if (url.pathname === '/api/inventario' && req.method === 'GET') return send(200, db.prepare('SELECT * FROM inventario_disponible ORDER BY nombre').all());
       if (url.pathname === '/api/movimientos' && req.method === 'GET') return send(200, db.prepare('SELECT * FROM movimientos_inventario WHERE producto_id=? ORDER BY id DESC LIMIT 20').all(url.searchParams.get('producto') || ''));
       if (url.pathname === '/api/pedidos' && req.method === 'GET') return send(200, listOrders(db));

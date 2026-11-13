@@ -1,4 +1,4 @@
-# Panel interno — SQLite (HU10 / HU04)
+# Panel interno — SQLite (HU10 / HU04 / HU05)
 
 La versión actual usa React + TypeScript + Vite y una API local Node.js con SQLite. No requiere cuenta de Supabase ni claves VITE_SUPABASE. El catálogo público conserva HTML y JavaScript.
 
@@ -50,3 +50,19 @@ Los tests de React usan dobles del cliente. Las pruebas del servidor usan HTTP y
 `migrations/001_inventario_initial.sql`, `002_hu10_acceso_interno.sql` y `migrations/tests/hu10_permisos.sql` son PostgreSQL/Supabase: se conservan como referencia futura y no se ejecutan con SQLite. El cliente de la interfaz está centralizado en `panel/src/client.ts` para facilitar el cambio posterior. No se ha implementado una exportación automática: habrá que trasladar productos y movimientos, mapear usuarios a UUID de Supabase Auth e invitar/recrear sus cuentas; no copiar hashes ni sesiones locales como credenciales de Supabase.
 
 La lista de usuarios habilitados cubre S1; HU13 completará los roles. Responsable propuesta: Brenda Paola Zapata Mio. Trazabilidad: Word 3.3.3 y backlog 4.4. La decisión actual usa SQLite temporalmente; Supabase queda para una fase posterior.
+
+## HU05 — Confirmar pedidos y reservar
+
+El panel incluye **Pedidos y reservas**. Seleccionar producto y unidades y pulsar **Confirmar pedido y reservar**. La interfaz permite un producto por pedido; la API admite hasta 100 productos distintos por pedido. **Actualizar disponibilidad** relee el estado del servidor, por ejemplo después de una operación desde otra sesión.
+
+- Físico = `stock_actual`; reservado = suma de líneas de pedidos CONFIRMADOS; disponible = físico − reservado.
+- Confirmar no reduce físico. Una transacción `BEGIN IMMEDIATE` toma el bloqueo de escritura antes de comprobar disponibilidad y guardar todas las líneas. Si falla una línea, no se reserva ninguna.
+- El identificador del pedido permite reintentar sin duplicar reservas. Reutilizarlo con otros datos, otro actor o después de cancelar se rechaza con HTTP 409.
+- Cancelar cambia de CONFIRMADO a CANCELADO una sola vez, guarda fecha y usuario de cancelación y libera la reserva por el cambio de estado. Las repeticiones devuelven el estado cancelado sin una segunda liberación.
+- Todas las rutas requieren una sesión habilitada. La separación fina Ventas/Almacén sigue pendiente de HU13.
+
+El esquema `migrations/sqlite/002_hu05_reservas.sql` se aplica automáticamente al iniciar la API y conserva inventario, usuarios y movimientos existentes. Reiniciar `npm run server` después de actualizar. No ejecutar las migraciones PostgreSQL con SQLite. Respaldar la base antes de actualizar.
+
+API: `GET /api/pedidos`, `POST /api/pedidos/confirmar` con `{ "id": "pedido-001", "lineas": [{ "producto_id": "PROD-TEST-001", "cantidad": 10 }] }`, y `POST /api/pedidos/pedido-001/cancelar` con `{}`. Inventario devuelve `stock_actual`, `reservado` y `disponible`. Las pruebas usan bases temporales con físico 30; no se modifica el stock real para preparar demostraciones.
+
+Ver `VERIFICACION_HU05.md` para los casos ejecutados. Referencia de concurrencia: [transacciones SQLite](https://www.sqlite.org/lang_transaction.html). La función transaccional PostgreSQL se implementará al migrar a Supabase.

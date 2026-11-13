@@ -6,3 +6,4 @@ dist/
 data/
 *.sqlite
 *.sqlite-*
+!.env.whatsapp.example

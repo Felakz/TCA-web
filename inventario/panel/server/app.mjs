@@ -1,3 +1,4 @@
+import { whatsappContact } from './whatsapp.mjs';
 import { allowed, users, manageUser, addUser } from './permissions.mjs';
 import { readFileSync } from 'node:fs';
 import { replenishment, configureMinimum, createProposal, reviseProposal } from './replenishment.mjs';
@@ -5,7 +6,7 @@ import { dispatchOrder, getReceipt, confirmOrder, cancelOrder, listOrders, Order
 import { createServer } from 'node:http';
 import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 const hash = value => createHash('sha256').update(value).digest('hex');
-export function createApp(db) {
+export function createApp(db, contact = whatsappContact()) {
   const attempts = new Map();
   return createServer(async (req, res) => {
     const send = (status, data, cookie) => {
@@ -49,6 +50,7 @@ export function createApp(db) {
         const source = JSON.parse(readFileSync(new URL('../../../js/productos.json', import.meta.url), 'utf8'));
         return send(200, Object.entries(source).flatMap(([categoria, entry]) => (entry.productos ?? []).map(p => ({ id:p.id,nombre:p.nombre,marca:p.marca,imagen:p.imagen,descripcion:p.descripcion,categoria }))));
       }
+      if (url.pathname === '/api/whatsapp' && req.method === 'GET') return send(200, contact);
       if (!user) return send(401, { message: 'Se requiere una sesión habilitada.' });
       if (url.pathname === '/api/logout' && req.method === 'POST') {
         db.prepare('DELETE FROM sesiones WHERE token=?').run(hash(token));

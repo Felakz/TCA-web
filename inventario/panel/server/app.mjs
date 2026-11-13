@@ -1,3 +1,4 @@
+import { confirmOrder, cancelOrder, listOrders, OrderError } from './orders.mjs';
 import { createServer } from 'node:http';
 import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -46,8 +47,12 @@ export function createApp(db) {
         db.prepare('DELETE FROM sesiones WHERE token=?').run(hash(token));
         return send(200, {}, cookie(''));
       }
-      if (url.pathname === '/api/inventario' && req.method === 'GET') return send(200, db.prepare('SELECT * FROM inventario ORDER BY nombre').all());
+      if (url.pathname === '/api/inventario' && req.method === 'GET') return send(200, db.prepare('SELECT * FROM inventario_disponible ORDER BY nombre').all());
       if (url.pathname === '/api/movimientos' && req.method === 'GET') return send(200, db.prepare('SELECT * FROM movimientos_inventario WHERE producto_id=? ORDER BY id DESC LIMIT 20').all(url.searchParams.get('producto') || ''));
+      if (url.pathname === '/api/pedidos' && req.method === 'GET') return send(200, listOrders(db));
+      if (url.pathname === '/api/pedidos/confirmar' && req.method === 'POST') return send(200, confirmOrder(db, user, body));
+      const cancel = url.pathname.match(/^\/api\/pedidos\/([a-zA-Z0-9_-]{1,100})\/cancelar$/);
+      if (cancel && req.method === 'POST') return send(200, cancelOrder(db, user, cancel[1]));
       if (url.pathname === '/api/entradas' && req.method === 'POST') {
         const { p_producto_id: product, p_cantidad: quantity, p_idempotency_key: key, p_observacion: note = null } = body;
         if (typeof product !== 'string' || !Number.isInteger(quantity) || quantity <= 0 || quantity > 2147483647 || typeof key !== 'string' || !key.trim() || key.length > 200 || (note !== null && (typeof note !== 'string' || note.length > 500))) return send(400, { message: 'Datos de entrada inválidos.' });
@@ -68,6 +73,6 @@ export function createApp(db) {
         } catch (error) { db.exec('ROLLBACK'); throw error; }
       }
       return send(404, { message: 'Ruta no encontrada.' });
-    } catch { if (!res.headersSent) send(500, { message: 'Error interno del servidor.' }); }
+    } catch (error) { if (error instanceof OrderError) return send(error.status, { message: error.message }); if (!res.headersSent) send(500, { message: 'Error interno del servidor.' }); }
   });
 }

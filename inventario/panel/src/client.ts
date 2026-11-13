@@ -1,5 +1,6 @@
+export type Order = { id: string; estado: 'CONFIRMADO' | 'CANCELADO'; lineas: { producto_id: string; cantidad: number }[] };
 export type Session = { user: { id: string; email: string } };
-export type Product = { producto_id: string; nombre: string; stock_actual: number };
+export type Product = { producto_id: string; nombre: string; stock_actual: number; reservado: number; disponible: number };
 export type Movement = { id: number; cantidad: number; stock_despues: number; actor: string; fecha: string; observacion: string | null };
 type Result<T> = { data: T; error: { code?: string; message: string } | null };
 const listeners = new Set<(event: string, session: Session | null) => void>();
@@ -21,6 +22,9 @@ export const client = {
     async signInWithPassword(credentials: { email: string; password: string }) { const result = await call<{ session: Session }>('login', credentials); if (!result.error) { emit(result.data.session); channel?.postMessage('change'); } return { error: result.error }; },
     async signOut(_options?: { scope: string }) { const result = await call('logout', {}); if (!result.error) { emit(null); channel?.postMessage('change'); } return { error: result.error }; }
   },
+  orders: () => call<Order[]>('pedidos'),
+  confirmOrder: (params: { id: string; lineas: { producto_id: string; cantidad: number }[] }) => call('pedidos/confirmar', params),
+  cancelOrder: (id: string) => call(`pedidos/${encodeURIComponent(id)}/cancelar`, {}),
   products: () => call<Product[]>('inventario'),
   movements: (product: string) => call<Movement[]>(`movimientos?producto=${encodeURIComponent(product)}`),
   registerEntry: (params: object) => call<{ stock_despues: number }>('entradas', params)

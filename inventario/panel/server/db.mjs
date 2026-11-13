@@ -1,16 +1,18 @@
+import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomBytes, scryptSync, randomUUID } from 'node:crypto';
 export function openDatabase(path = resolve('data/tca.sqlite')) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
-  const db = new DatabaseSync(path);
+  const db = new DatabaseSync(path, { timeout: 5000 });
   db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;
     CREATE TABLE IF NOT EXISTS usuarios(id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, hash TEXT NOT NULL, habilitado INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE IF NOT EXISTS sesiones(token TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id), vence INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS inventario(producto_id TEXT PRIMARY KEY, nombre TEXT NOT NULL, stock_actual INTEGER NOT NULL CHECK(stock_actual>=0));
     CREATE TABLE IF NOT EXISTS movimientos_inventario(id INTEGER PRIMARY KEY, producto_id TEXT NOT NULL REFERENCES inventario(producto_id), cantidad INTEGER NOT NULL CHECK(cantidad>0), stock_despues INTEGER NOT NULL, actor TEXT NOT NULL REFERENCES usuarios(id), idempotency_key TEXT NOT NULL UNIQUE, observacion TEXT, fecha TEXT NOT NULL);
     INSERT OR IGNORE INTO inventario VALUES('PROD-TEST-001','Producto de prueba HU04',20);`);
+  db.exec(readFileSync(new URL('../../migrations/sqlite/002_hu05_reservas.sql', import.meta.url), 'utf8'));
   return db;
 }
 export function createUser(db, email, password) {

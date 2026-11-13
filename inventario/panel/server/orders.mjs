@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 export class OrderError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
@@ -40,7 +41,39 @@ export function cancelOrder(db, user, id) {
   try {
     const order = db.prepare('SELECT estado FROM pedidos WHERE id=?').get(id);
     if (!order) fail(404, 'Pedido no encontrado.');
+    if (order.estado === 'DESPACHADO') fail(409, 'Un pedido despachado no se puede cancelar.');
     const result = db.prepare("UPDATE pedidos SET estado='CANCELADO',cancelado=?,cancelado_por=? WHERE id=? AND estado='CONFIRMADO'").run(new Date().toISOString(), user.id, id);
     db.exec('COMMIT'); return { id, estado: 'CANCELADO', idempotente: result.changes === 0 };
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
+export function getReceipt(db, id) {
+  const row = db.prepare('SELECT constancia FROM despachos WHERE pedido_id=?').get(id);
+  if (!row) fail(404, 'El pedido no tiene constancia de despacho.');
+  return JSON.parse(row.constancia);
+}
+export function dispatchOrder(db, user, id) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const order = db.prepare('SELECT estado FROM pedidos WHERE id=?').get(id);
+    if (!order) fail(404, 'Pedido no encontrado.');
+    if (order.estado === 'DESPACHADO') {
+      const constancia = getReceipt(db, id);
+      db.exec('COMMIT'); return { estado: 'DESPACHADO', idempotente: true, constancia };
+    }
+    if (order.estado !== 'CONFIRMADO') fail(409, 'Solo se puede despachar un pedido confirmado y reservado.');
+    const lines = db.prepare('SELECT l.producto_id,l.cantidad,i.nombre,i.stock_actual FROM pedido_lineas l JOIN inventario i ON i.producto_id=l.producto_id WHERE l.pedido_id=? ORDER BY l.producto_id').all(id);
+    if (!lines.length) fail(409, 'El pedido no tiene unidades reservadas.');
+    const receipt = { id: `DES-${randomUUID()}`, pedido_id: id, fecha: new Date().toISOString(), actor: { id: user.id, email: user.email }, leyenda: 'CONSTANCIA INTERNA DE DESPACHO — SIN VALOR TRIBUTARIO', lineas: [] };
+    for (const line of lines) {
+      if (line.stock_actual < line.cantidad) fail(409, `Stock físico insuficiente para ${line.producto_id}.`);
+      const after = line.stock_actual - line.cantidad;
+      db.prepare('UPDATE inventario SET stock_actual=? WHERE producto_id=?').run(after, line.producto_id);
+      db.prepare("INSERT INTO movimientos_inventario(producto_id,cantidad,stock_despues,actor,idempotency_key,observacion,fecha,tipo_movimiento,pedido_id) VALUES(?,?,?,?,?,?,?,'SALIDA',?)").run(line.producto_id, line.cantidad, after, user.id, randomUUID(), receipt.leyenda, receipt.fecha, id);
+      receipt.lineas.push({ producto_id: line.producto_id, nombre: line.nombre, cantidad: line.cantidad, stock_antes: line.stock_actual, stock_despues: after });
+    }
+    db.prepare("UPDATE pedidos SET estado='DESPACHADO' WHERE id=?").run(id);
+    db.prepare('INSERT INTO despachos VALUES(?,?,?,?,?)').run(receipt.id, id, user.id, receipt.fecha, JSON.stringify(receipt));
+    db.exec('COMMIT'); return { estado: 'DESPACHADO', idempotente: false, constancia: receipt };
   } catch (error) { db.exec('ROLLBACK'); throw error; }
 }

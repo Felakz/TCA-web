@@ -1,7 +1,8 @@
-export type Order = { id: string; estado: 'CONFIRMADO' | 'CANCELADO'; lineas: { producto_id: string; cantidad: number }[] };
+export type Receipt = { id: string; pedido_id: string; fecha: string; actor: { id: string; email: string }; leyenda: string; lineas: { producto_id: string; nombre: string; cantidad: number; stock_antes: number; stock_despues: number }[] };
+export type Order = { id: string; estado: 'CONFIRMADO' | 'CANCELADO' | 'DESPACHADO'; lineas: { producto_id: string; cantidad: number }[] };
 export type Session = { user: { id: string; email: string } };
 export type Product = { producto_id: string; nombre: string; stock_actual: number; reservado: number; disponible: number };
-export type Movement = { id: number; cantidad: number; stock_despues: number; actor: string; fecha: string; observacion: string | null };
+export type Movement = { tipo_movimiento: 'ENTRADA' | 'SALIDA'; pedido_id: string | null; id: number; cantidad: number; stock_despues: number; actor: string; fecha: string; observacion: string | null };
 type Result<T> = { data: T; error: { code?: string; message: string } | null };
 const listeners = new Set<(event: string, session: Session | null) => void>();
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('tca-auth') : null;
@@ -24,6 +25,8 @@ export const client = {
   },
   orders: () => call<Order[]>('pedidos'),
   confirmOrder: (params: { id: string; lineas: { producto_id: string; cantidad: number }[] }) => call('pedidos/confirmar', params),
+  dispatchOrder: (id: string) => call<{ constancia: Receipt }>(`pedidos/${encodeURIComponent(id)}/despachar`, {}),
+  receipt: (id: string) => call<Receipt>(`pedidos/${encodeURIComponent(id)}/constancia`),
   cancelOrder: (id: string) => call(`pedidos/${encodeURIComponent(id)}/cancelar`, {}),
   products: () => call<Product[]>('inventario'),
   movements: (product: string) => call<Movement[]>(`movimientos?producto=${encodeURIComponent(product)}`),

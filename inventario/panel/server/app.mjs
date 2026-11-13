@@ -1,4 +1,4 @@
-import { confirmOrder, cancelOrder, listOrders, OrderError } from './orders.mjs';
+import { dispatchOrder, getReceipt, confirmOrder, cancelOrder, listOrders, OrderError } from './orders.mjs';
 import { createServer } from 'node:http';
 import { randomBytes, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -51,6 +51,10 @@ export function createApp(db) {
       if (url.pathname === '/api/movimientos' && req.method === 'GET') return send(200, db.prepare('SELECT * FROM movimientos_inventario WHERE producto_id=? ORDER BY id DESC LIMIT 20').all(url.searchParams.get('producto') || ''));
       if (url.pathname === '/api/pedidos' && req.method === 'GET') return send(200, listOrders(db));
       if (url.pathname === '/api/pedidos/confirmar' && req.method === 'POST') return send(200, confirmOrder(db, user, body));
+      const dispatch = url.pathname.match(/^\/api\/pedidos\/([a-zA-Z0-9_-]{1,100})\/despachar$/);
+      if (dispatch && req.method === 'POST') return send(200, dispatchOrder(db, user, dispatch[1]));
+      const receipt = url.pathname.match(/^\/api\/pedidos\/([a-zA-Z0-9_-]{1,100})\/constancia$/);
+      if (receipt && req.method === 'GET') return send(200, getReceipt(db, receipt[1]));
       const cancel = url.pathname.match(/^\/api\/pedidos\/([a-zA-Z0-9_-]{1,100})\/cancelar$/);
       if (cancel && req.method === 'POST') return send(200, cancelOrder(db, user, cancel[1]));
       if (url.pathname === '/api/entradas' && req.method === 'POST') {

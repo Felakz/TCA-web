@@ -1,4 +1,4 @@
-# Panel interno — SQLite (HU10 / HU04 / HU05)
+# Panel interno — SQLite (HU10 / HU04 / HU05 / HU06)
 
 La versión actual usa React + TypeScript + Vite y una API local Node.js con SQLite. No requiere cuenta de Supabase ni claves VITE_SUPABASE. El catálogo público conserva HTML y JavaScript.
 
@@ -66,3 +66,17 @@ El esquema `migrations/sqlite/002_hu05_reservas.sql` se aplica automáticamente 
 API: `GET /api/pedidos`, `POST /api/pedidos/confirmar` con `{ "id": "pedido-001", "lineas": [{ "producto_id": "PROD-TEST-001", "cantidad": 10 }] }`, y `POST /api/pedidos/pedido-001/cancelar` con `{}`. Inventario devuelve `stock_actual`, `reservado` y `disponible`. Las pruebas usan bases temporales con físico 30; no se modifica el stock real para preparar demostraciones.
 
 Ver `VERIFICACION_HU05.md` para los casos ejecutados. Referencia de concurrencia: [transacciones SQLite](https://www.sqlite.org/lang_transaction.html). La función transaccional PostgreSQL se implementará al migrar a Supabase.
+
+## HU06 — Despachar y emitir constancia interna
+
+En **Pedidos y reservas**, un pedido CONFIRMADO tiene el botón **Despachar pedido**. El servidor procesa todas las líneas en una transacción: descuenta físico, registra movimientos SALIDA, cambia el pedido a DESPACHADO y guarda una constancia. La reserva se libera al dejar de estar CONFIRMADO. Ejemplo: físico 30 y reservado 10 pasan a físico 20 y reservado 0; disponible permanece en 20.
+
+Reintentar el despacho devuelve la misma constancia sin descontar otra vez. Un pedido cancelado no se puede despachar y uno despachado no se puede cancelar ni reconfirmar. Una falla intermedia revierte la operación completa. Se conserva el estado y el documento después de reiniciar.
+
+La constancia incluye identificador, pedido, fecha, responsable y productos/cantidades con sus nombres al despachar. Se muestra con la leyenda **CONSTANCIA INTERNA DE DESPACHO — SIN VALOR TRIBUTARIO**. **Descargar constancia interna** genera un archivo de texto; **Ver constancia** permite recuperarla después. No es comprobante de pago ni documento tributario.
+
+Rutas protegidas: `POST /api/pedidos/:id/despachar` con `{}` y `GET /api/pedidos/:id/constancia`. El historial distingue ENTRADA y SALIDA e indica el pedido asociado.
+
+Reiniciar `npm run server` para aplicar `migrations/sqlite/003_hu06_despachos.sql`. La migración se ejecuta una vez, queda registrada en `schema_migrations` y conserva los pedidos y movimientos existentes. Respaldar la carpeta `data` con la API detenida antes de actualizar. El SQL 003 se ejecuta mediante `db.mjs`, que controla transacción, permisos de claves foráneas y comprobación de integridad; no pegarlo aislado en una consola.
+
+La autorización actual permite operar a cualquier cuenta interna habilitada; la separación Almacén/Ventas corresponde a HU13. Ver `VERIFICACION_HU06.md`. Supabase/PostgreSQL sigue pendiente para la migración posterior.

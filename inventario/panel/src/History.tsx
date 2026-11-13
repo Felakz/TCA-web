@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { InternalClient } from './client';
-type Movement = { id: number; cantidad: number; stock_despues: number; actor: string; fecha: string; observacion: string | null };
+import type { InternalClient, Movement } from './client';
+
 export function History({ client, product }: { client: InternalClient; product: string }) {
   const [rows, setRows] = useState<Movement[]>([]);
   const [status, setStatus] = useState('Cargando historial…');
@@ -14,5 +14,5 @@ export function History({ client, product }: { client: InternalClient; product: 
       });
     return () => { active = false; };
   }, [client, product]);
-  return <><h3>Últimos movimientos</h3><p role="status">{status}</p><div className="table-scroll"><table><thead><tr><th>Fecha</th><th>Cantidad</th><th>Stock final</th><th>Usuario</th><th>Observación</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{new Date(row.fecha).toLocaleString('es-PE')}</td><td>{row.cantidad}</td><td>{row.stock_despues}</td><td>{row.actor}</td><td>{row.observacion}</td></tr>)}</tbody></table></div></>;
+  return <><h3>Últimos movimientos</h3><p role="status">{status}</p><div className="table-scroll"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Pedido</th><th>Cantidad</th><th>Stock final</th><th>Usuario</th><th>Observación</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{new Date(row.fecha).toLocaleString('es-PE')}</td><td>{row.tipo_movimiento}</td><td>{row.pedido_id ?? "—"}</td><td>{row.cantidad}</td><td>{row.stock_despues}</td><td>{row.actor}</td><td>{row.observacion}</td></tr>)}</tbody></table></div></>;
 }

@@ -1,182 +1,52 @@
-# HU04 — Registrar entradas con inventario persistente
+# Panel interno — SQLite (HU10 / HU04)
 
-**Sprint 1 · 13–20 oct 2026 · 5 puntos relativos**  
-**Responsable técnica:** Brenda Paola Zapata Mio  
-**Stack:** React + TypeScript + Vite + Tailwind (sitio) · Supabase PostgreSQL/Auth/RLS
+La versión actual usa React + TypeScript + Vite y una API local Node.js con SQLite. No requiere cuenta de Supabase ni claves VITE_SUPABASE. El catálogo público conserva HTML y JavaScript.
 
----
+## Inicio local
 
-## Criterios de aceptación
+Requiere Node.js 24 LTS. Desde `inventario/panel`:
 
-| # | Criterio | Implementación |
-|---|----------|----------------|
-| AC1 | Stock 20 + entrada 40 = 60 tras recargar | `registrar_entrada()` suma atómicamente; la recarga relee `inventario.stock_actual` desde PostgreSQL |
-| AC2 | Rechazar cantidades inválidas | Validación doble: `validarEntrada()` en cliente + `CHECK (cantidad > 0)` y guard en función PG |
-| AC3 | Doble envío no crea movimientos adicionales | `idempotency_key UNIQUE` + retorno `IDEMPOTENT` si la clave ya existe |
-
----
-
-## Archivos entregados
-
-```
-TCA-web/inventario/
-├── inventario-entrada.html          ← Página de UI (Almacén)
-├── js/
-│   ├── inventario-service.js        ← Servicio JS (validación + RPC)
-│   └── inventario-service.test.js   ← Tests de aceptación (sin framework)
-└── migrations/
-    └── 001_inventario_initial.sql   ← Migración Supabase (tablas + función + RLS)
+```powershell
+npm ci
+npm run user:create -- brenda@ejemplo.com
 ```
 
----
+El comando pide una contraseña de al menos 12 caracteres; no hay cuentas ni contraseñas predeterminadas. La entrada de contraseña se oculta en la terminal. La cuenta creada queda habilitada para el equipo interno.
 
-## Esquema de base de datos
+En una terminal:
 
-### Tabla `inventario`
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | BIGSERIAL PK | Clave primaria |
-| `producto_id` | TEXT UNIQUE | Clave de negocio (ej. `PROD-TEST-001`) |
-| `nombre` | TEXT | Nombre del producto |
-| `stock_actual` | INTEGER ≥ 0 | Saldo actual; actualizado atómicamente |
-| `created_at` / `updated_at` | TIMESTAMPTZ | Auditoría automática |
-
-### Tabla `movimientos_inventario`
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | BIGSERIAL PK | Clave primaria |
-| `inventario_id` | FK → inventario | Referencia al producto |
-| `tipo_movimiento` | ENUM texto | `ENTRADA` / `SALIDA` / `AJUSTE` |
-| `cantidad` | INTEGER > 0 | Unidades del movimiento |
-| `stock_antes` / `stock_despues` | INTEGER | Saldo pre/post para auditoría |
-| `actor` | TEXT | Usuario o rol que registra |
-| `idempotency_key` | TEXT UNIQUE | **Clave de idempotencia (AC3)** |
-| `observacion` | TEXT nullable | Nota libre |
-| `fecha` | TIMESTAMPTZ | Momento del movimiento |
-
-### Función `registrar_entrada()`
-
-Función PL/pgSQL `SECURITY DEFINER` que en una sola transacción:
-
-1. Rechaza cantidades ≤ 0 (AC2)
-2. Busca la `idempotency_key`; si existe → devuelve `IDEMPOTENT` sin escribir (AC3)
-3. Bloquea la fila del producto (`FOR UPDATE`) para evitar condición de carrera
-4. Actualiza `stock_actual` y registra el movimiento (AC1)
-5. Devuelve JSON con `status`, `movimiento_id`, `stock_antes`, `stock_despues`, `fecha`
-
----
-
-## Configuración inicial (Supabase)
-
-### 1. Ejecutar la migración
-
-En el **SQL Editor** del dashboard de Supabase:
-
-```sql
--- Pega el contenido completo de:
--- TCA-web/inventario/migrations/001_inventario_initial.sql
+```powershell
+npm run server
 ```
 
-### 2. Configurar las credenciales en la UI
+En otra, desde el mismo directorio:
 
-Edita `inventario-entrada.html` y reemplaza:
-
-```js
-const SUPABASE_URL      = 'https://TU_PROYECTO.supabase.co';
-const SUPABASE_ANON_KEY = 'TU_ANON_KEY';
+```powershell
+npm run dev
 ```
 
-Haz lo mismo en `inventario-service.js` si usas el servicio fuera de la página.
+Abrir la URL que imprime Vite, normalmente `http://127.0.0.1:5173`. Usar siempre el mismo hostname. Vite envía `/api` al servidor local en el puerto 3001. El servidor escucha solo en 127.0.0.1. La entrada HTML heredada apunta al build; para desarrollo usar Vite directamente.
 
-### 3. Agregar productos de prueba
+Los datos se guardan en `inventario/panel/data/tca.sqlite`, fuera de los archivos de interfaz, y se excluyen de Git. Se crea automáticamente el esquema y un producto de prueba con stock 20. Reiniciar el servidor no reinicia el stock. No servir el directorio `data` mediante un servidor estático. Para respaldar, detener la API y copiar todo `data`.
 
-```sql
--- Producto para verificar AC1
-INSERT INTO inventario (producto_id, nombre, stock_actual)
-VALUES ('PROD-TEST-001', 'Producto de prueba HU04', 20)
-ON CONFLICT (producto_id) DO NOTHING;
+## Autenticación y protección
+
+Las contraseñas se guardan como hashes scrypt con sal aleatoria. La sesión usa un token aleatorio en una cookie HttpOnly y SameSite=Strict, con vencimiento de ocho horas; SQLite guarda su hash. Cada consulta privada comprueba sesión y cuenta habilitada. El cierre elimina la sesión del servidor. El actor de un movimiento procede del usuario autenticado y no del formulario. Las entradas usan transacción y clave de idempotencia.
+
+Esta configuración es para trabajo local. Para exponerla en red se requiere HTTPS, cookie Secure y configuración de despliegue; `vite preview` por sí solo no sirve la API. `npm run build` compila únicamente la interfaz.
+
+## Verificar
+
+```powershell
+npm test
+npm run test:server
+npm run build
 ```
 
----
+Los tests de React usan dobles del cliente. Las pruebas del servidor usan HTTP y una base SQLite temporal real: comprueban credenciales, lecturas y escrituras sin sesión, cierre, cuenta deshabilitada, persistencia e idempotencia.
 
-## Ejecutar los tests de aceptación
+## Migración posterior a Supabase
 
-Abre `inventario-entrada.html` en el navegador y en la **consola** ejecuta:
+`migrations/001_inventario_initial.sql`, `002_hu10_acceso_interno.sql` y `migrations/tests/hu10_permisos.sql` son PostgreSQL/Supabase: se conservan como referencia futura y no se ejecutan con SQLite. El cliente de la interfaz está centralizado en `panel/src/client.ts` para facilitar el cambio posterior. No se ha implementado una exportación automática: habrá que trasladar productos y movimientos, mapear usuarios a UUID de Supabase Auth e invitar/recrear sus cuentas; no copiar hashes ni sesiones locales como credenciales de Supabase.
 
-```js
-import('./js/inventario-service.test.js').then(m => m.ejecutarTests());
-```
-
-Salida esperada:
-
-```
-📦 AC2 — Rechazar cantidades inválidas
-  ✅ Cantidad 0 debe ser rechazada
-  ✅ Cantidad negativa (-1) debe ser rechazada
-  ✅ Cantidad decimal (3.5) debe ser rechazada
-  ✅ Cantidad null debe ser rechazada
-  ✅ Cantidad undefined debe ser rechazada
-  ✅ Cantidad string ("cuarenta") debe ser rechazada
-  ✅ Cantidad válida (40) no debe lanzar excepción
-📦 Validación de actor e idempotency key
-  ✅ Actor vacío debe ser rechazado
-  ✅ IdempotencyKey vacía debe ser rechazada
-📦 Generador de idempotency key
-  ✅ Dos claves sin contexto deben ser distintas
-  ✅ La clave sin contexto debe ser un string no vacío
-  ✅ El mismo contexto debe producir la misma clave (determinista)
-  ✅ Claves con contexto deben iniciar con "IK-"
-📦 AC1 & AC3 — Lógica de negocio (simulada)
-  ✅ AC1: stock 20 + entrada 40 = 60
-  ✅ AC1: status debe ser CREADO
-  ✅ AC3: primer envío → status CREADO
-  ✅ AC3: doble envío → status IDEMPOTENT
-  ✅ AC3: doble envío no aumenta el nº de movimientos
-  ✅ AC3: stock calculado en primer envío es 60
-  ✅ AC3: doble envío devuelve el mismo stock (60)
-════════════════════════════════════════════════════════════
-RESULTADO: 21 pasados, 0 fallidos
-```
-
----
-
-## Flujo de idempotencia (AC3)
-
-```
-Cliente                    Supabase RPC
-  │                             │
-  │── registrar_entrada(...) ──►│
-  │   idempotency_key = "IK-X"  │
-  │                             │── ¿Existe IK-X? ──► NO
-  │                             │── UPDATE inventario + INSERT movimiento
-  │◄── { status: "CREADO" } ───│
-  │
-  │  (doble envío / retry)
-  │
-  │── registrar_entrada(...) ──►│
-  │   idempotency_key = "IK-X"  │
-  │                             │── ¿Existe IK-X? ──► SÍ
-  │◄── { status: "IDEMPOTENT" }─│  (sin escritura)
-```
-
----
-
-## Trazabilidad
-
-- **Historia:** HU04 · H1; T1
-- **Word refs:** 3.3.3 y 4.4
-- **Commit base revisado:** `265b7104e9a0dafddd2a6c42ec4f12319efad81b` (TCA-web)
-- **Jira Sprint 1:** 13–20 oct 2026
-- **Dependencias:** Preparación de datos y alcance acordado
-
-## Equipo Sprint 1
-
-| Rol | Persona |
-|-----|---------|
-| Líder técnica | Brenda Paola Zapata Mio |
-| Scrum Master / UX | Dario Calef Zambrano Leaño |
-| Diseño / UI | Joel Jesús Gallo Tume |
-| PM / Product Owner | Dylan Fabian Panta Charca |
-
+La lista de usuarios habilitados cubre S1; HU13 completará los roles. Responsable propuesta: Brenda Paola Zapata Mio. Trazabilidad: Word 3.3.3 y backlog 4.4. La decisión actual usa SQLite temporalmente; Supabase queda para una fase posterior.

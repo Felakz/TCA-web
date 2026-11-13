@@ -1,0 +1,30 @@
+{
+  "name": "tca-panel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run src",
+    "server": "node server/index.mjs",
+    "user:create": "node server/create-user.mjs",
+    "test:server": "node --test server/*.test.mjs"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^7.0.0",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
